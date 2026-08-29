@@ -1,80 +1,100 @@
-# TrendVibe Apparel — Customer Retention Diagnostic
+# Case Study: TrendVibe Apparel — Customer Churn Diagnosis
 
-## Objective
+This folder contains the technical implementation and strategic playbook for diagnosing a simulated customer-retention decline at TrendVibe Apparel. It is written so business stakeholders can understand the findings, intervention logic, and measurable next steps without needing to inspect the source code.
 
-Investigate a simulated deterioration in customer retention and translate the strongest observed churn signals into reproducible diagnostics and operational intervention rules.
+## 📊 Business Problem Recap
 
-## Scenario
+TrendVibe experienced a **12-percentage-point decline** in customer retention over two quarters, falling from a Q2 baseline of 78% to 66% in Q4. Overall churn in the simulated 10,000-customer case was 24%.
 
-TrendVibe Apparel is a simulated online fashion retailer with 10,000 customer records. Overall churn is 24%, while quarterly retention declined from 79% in Q1 to 66% in Q4. Churn is defined as 90 or more days without a purchase as of December 31, 2025.
+The diagnostic objective was to identify the strongest behavioral, operational, and acquisition signals associated with this deterioration and translate those signals into practical retention interventions.
 
-The source population also contains 45 wholesale accounts with lifetime spending above $15,000. These accounts are structurally separated from core consumer-retail analysis to prevent them from distorting spending metrics.
+Churn is defined as 90 or more days without a purchase as of December 31, 2025. Because `days_since_last_purchase` defines the outcome, it is deliberately not treated as an explanatory churn driver.
 
-## Key observed patterns
+The source population also includes 45 wholesale accounts with lifetime spending above $15,000. These accounts are separated from consumer-retail analysis so they do not distort standard retail spending metrics.
 
-| Dimension | Segment | Observed churn |
-| --- | --- | ---: |
-| Order lifecycle | 1 order | 68% |
-| Order lifecycle | 2–3 orders | 18% |
-| Order lifecycle | 4–5 orders | 6% |
-| Order lifecycle | 6+ orders | 2% |
-| Support tickets | 0 | 15% |
-| Support tickets | 1 | 18% |
-| Support tickets | 2 | 45% |
-| Support tickets | 3+ | 82% |
-| Signup channel | Social Media | 38% |
-| Signup channel | Paid Ads | 24% |
-| Signup channel | Organic Search | 12% |
-| Signup channel | Referral | 8% |
-| Age | 18–24 | 42% |
-| Age | 25–34 | 20% |
-| Age | 35–44 | 14% |
-| Age | 45–65 | 8% |
+## 🎯 Executive Findings Summary
 
-Excluding wholesale accounts, median observed lifetime spend was $420 among active customers and $85 among churned customers.
+### The “One-and-Done” Structural Cliff
 
-## Interpretation
+Customer churn is heavily concentrated at the first-purchase threshold. Single-order customers show a **68% observed churn rate**, compared with **18% among customers reaching 2–3 orders**, 6% at 4–5 orders, and 2% at 6+ orders.
 
-The strongest broad behavioral signal is failure to progress beyond the first purchase. Repeated support interactions form a second operational risk signal, particularly once a customer reaches two or more tickets. Social Media acquisition also shows substantially higher observed churn than Organic Search and Referral traffic.
+This makes failure to reach a second purchase the strongest broad behavioral signal in the case. Excluding wholesale accounts, churned customers also show median observed lifetime spend of only **$85**, compared with **$420 among active customers**.
 
-These are associations in the simulated data. They are not presented as independently established causal effects. In particular, age, signup channel, and purchase frequency may overlap. Without joint cross-tabulation or customer-level modeling, their marginal churn rates cannot be combined into a defensible multivariate probability.
+### Operational Friction Window
 
-`days_since_last_purchase` is not treated as an explanatory churn driver because the field is used to define the churn outcome itself.
+Repeated customer-support interactions are associated with sharply higher churn. Customers with no support tickets show 15% observed churn and customers with one ticket show 18%. At **two tickets, observed churn rises to 45%**, reaching **82% among customers with three or more tickets**.
 
-## Implementation
+This identifies two support tickets as a practical intervention threshold for proactive service recovery. The Q4 logistics bottleneck and shipping delays provide a plausible operational mechanism for the late-stage acceleration, while the earlier Q2-to-Q3 retention decline indicates that logistics alone cannot explain the full deterioration.
 
-### Python diagnostic engine
+### Social Media Acquisition Quality
 
-`python/retention_diagnostics.py` provides the reproducible diagnostic layer. It:
+Social Media-acquired customers show a **38% observed churn rate**, compared with Paid Ads at 24%, Organic Search at 12%, and Referral at 8%. TrendVibe also aggressively expanded TikTok and Instagram partnerships during Q3/Q4 while overall retention was deteriorating.
 
-- validates the expected dataset schema before analysis;
-- separates wholesale accounts above the defined spending threshold;
-- preserves retail records with missing spend rather than silently dropping them;
-- categorizes missing signup-channel attribution as `Unknown`;
-- reproduces the business-defined `1`, `2–3`, `4–5`, and `6+` order lifecycle bands;
-- reproduces the `0`, `1`, `2`, and `3+` support-ticket bands;
-- reports observed churn by lifecycle, support friction, and acquisition channel; and
-- compares median observed lifetime spend for active versus churned retail customers.
+This makes acquisition quality a meaningful investigation and optimization target, but not an independently established cause of the retention decline. Age, acquisition channel, purchase frequency, and service experience may overlap, and the available marginal rates cannot establish their independent effects.
 
-The financial comparison is deliberately labeled lifetime **spend**, not modeled Customer Lifetime Value (CLV).
+## 🛠️ Implemented Solutions & Frameworks
 
-### SQL intervention monitor
+### 1. Diagnostic Summary Engine — `python/retention_diagnostics.py`
 
-`sql/retention_alert_monitor.sql` selects customers who have not yet reached official churn status but meet at least one intervention condition:
+A reproducible Python diagnostic pipeline that:
 
-1. Two or more customer-support tickets; or
-2. Age 18–24 + Social Media acquisition + exactly one lifetime order.
+- validates the required CRM dataset schema before analysis;
+- isolates wholesale accounts spending above $15,000 from consumer-retail metrics;
+- retains missing-spend records rather than silently discarding them;
+- handles missing acquisition attribution by assigning an `Unknown` cohort;
+- aggregates customers into the business-defined 1 / 2–3 / 4–5 / 6+ order lifecycle bands;
+- aggregates support interactions into 0 / 1 / 2 / 3+ ticket bands;
+- summarizes observed churn across lifecycle, support-friction, and acquisition cohorts; and
+- compares median observed lifetime spend between active and churned retail customers.
 
-The first rule creates a service-recovery queue. The second creates a priority marketing target based on multiple observed risk indicators. The second rule is a targeting heuristic rather than a calculated combined churn score.
+The financial metric is intentionally described as observed **lifetime spend**, not Customer Lifetime Value (CLV), because no forward-looking CLV model was constructed.
 
-The SQL file also carries a concise development revision log documenting the corrected intermediate CTE projection issue, NULL-spend handling, and demographic fallback handling.
+### 2. Rules-Based Retention Intervention Monitor — `sql/retention_alert_monitor.sql`
 
-## Recommended interventions
+The SQL monitor converts historical diagnostic evidence into an actionable list of customers who are still active but meet defined intervention conditions.
 
-- Build a first-to-second-purchase retention program and measure second-order conversion.
-- Trigger service recovery when a customer reaches two support tickets rather than waiting for further escalation.
-- Evaluate Social Media acquisition using 30/60/90-day retention, second-purchase rate, and downstream customer value rather than acquisition volume alone.
+- **Service Recovery Flag:** surfaces active customers with exactly two support tickets, corresponding to the observed 45% churn cohort.
+- **Escalation Flag:** prioritizes active customers with three or more support tickets, corresponding to the observed 82% churn cohort.
+- **Persona Targeting Flag:** identifies active customers aged 18–24, acquired through Social Media, with exactly one lifetime order.
 
-## Analytical limitations
+The persona rule combines multiple observed risk indicators for targeting purposes. It is a heuristic intervention rule, **not a calculated combined churn probability**.
 
-This is a simulated portfolio case. The current intervention monitor is rules-based. The project does not claim causal inference, machine-learning prediction, or production real-time processing. Validation against customer-level joint distributions would be required before interpreting overlapping risk factors as a combined probability.
+The SQL implementation also includes a concise development revision log documenting the corrected intermediate CTE projection issue, NULL-spend handling, and demographic fallback handling.
+
+## 📈 Strategic Recommendations & KPIs
+
+1. **First-to-Second Purchase Lifecycle Program** — Build tailored post-purchase email, offer, or lifecycle flows focused on converting single-purchase customers into repeat buyers.  
+   **Primary KPI:** First-to-Second Purchase Conversion Rate.
+
+2. **Two-Ticket Customer Service Recovery Trigger** — Route customers reaching a second support ticket into a priority service-recovery workflow before further escalation.  
+   **Primary KPI:** Post-Complaint Churn Rate, tracked against customers receiving the intervention.
+
+3. **Retention-Adjusted Acquisition Evaluation** — Evaluate Social Media campaigns using downstream customer quality rather than acquisition volume alone. Compare campaigns using 30/60/90-day retention, second-purchase behavior, and observed downstream customer value.  
+   **Primary KPI:** 90-Day Retention Rate by Campaign Cohort.
+
+## 🔄 Reproducible Demonstration
+
+The original client-style exercise supplied aggregate statistics rather than a physical customer-level CSV. To make the technical pipeline runnable, this repository includes `data/generate_mock_data.py`, which generates **10,000 fictional customer records using a fixed random seed**.
+
+From this case-study directory:
+
+```bash
+python data/generate_mock_data.py
+python python/retention_diagnostics.py
+```
+
+The generated dataset reproduces the expected schema and plausible relationships required to demonstrate the pipeline. It does **not** reconstruct the unseen original customer-level data and should not be treated as independent validation of the aggregate case-study statistics.
+
+## ⚖️ Analytical Discipline & Limitations
+
+This project deliberately separates **observation, inference, and causation**.
+
+- `days_since_last_purchase` defines churn and therefore is not presented as a causal driver of churn.
+- The observed segment rates are marginal statistics. Rates for age, signup channel, purchase frequency, and support tickets cannot simply be multiplied or combined into a defensible customer-level churn probability.
+- Social Media expansion, logistics friction, and retention deterioration overlap in time, but temporal association alone does not establish causation.
+- The SQL intervention monitor is rules-based; it is not represented as a machine-learning model, causal model, production deployment, or real-time system.
+- Validation against customer-level joint distributions and post-intervention outcomes would be required before estimating independent effects or recovered business value.
+
+The purpose of the case is to demonstrate the complete diagnostic workflow:
+
+**Business symptom → data-quality controls → evidence → interpretation → operational intervention → measurable KPI.**
