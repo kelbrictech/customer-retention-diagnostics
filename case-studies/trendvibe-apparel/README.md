@@ -2,7 +2,7 @@
 
 ## Objective
 
-Investigate a simulated deterioration in customer retention and translate the strongest observed churn signals into operational intervention rules.
+Investigate a simulated deterioration in customer retention and translate the strongest observed churn signals into reproducible diagnostics and operational intervention rules.
 
 ## Scenario
 
@@ -41,14 +41,33 @@ These are associations in the simulated data. They are not presented as independ
 
 `days_since_last_purchase` is not treated as an explanatory churn driver because the field is used to define the churn outcome itself.
 
-## Operationalization
+## Implementation
 
-The SQL monitor selects customers who have not yet reached official churn status but meet at least one intervention condition:
+### Python diagnostic engine
+
+`python/retention_diagnostics.py` provides the reproducible diagnostic layer. It:
+
+- validates the expected dataset schema before analysis;
+- separates wholesale accounts above the defined spending threshold;
+- preserves retail records with missing spend rather than silently dropping them;
+- categorizes missing signup-channel attribution as `Unknown`;
+- reproduces the business-defined `1`, `2–3`, `4–5`, and `6+` order lifecycle bands;
+- reproduces the `0`, `1`, `2`, and `3+` support-ticket bands;
+- reports observed churn by lifecycle, support friction, and acquisition channel; and
+- compares median observed lifetime spend for active versus churned retail customers.
+
+The financial comparison is deliberately labeled lifetime **spend**, not modeled Customer Lifetime Value (CLV).
+
+### SQL intervention monitor
+
+`sql/retention_alert_monitor.sql` selects customers who have not yet reached official churn status but meet at least one intervention condition:
 
 1. Two or more customer-support tickets; or
 2. Age 18–24 + Social Media acquisition + exactly one lifetime order.
 
 The first rule creates a service-recovery queue. The second creates a priority marketing target based on multiple observed risk indicators. The second rule is a targeting heuristic rather than a calculated combined churn score.
+
+The SQL file also carries a concise development revision log documenting the corrected intermediate CTE projection issue, NULL-spend handling, and demographic fallback handling.
 
 ## Recommended interventions
 
@@ -58,4 +77,4 @@ The first rule creates a service-recovery queue. The second creates a priority m
 
 ## Analytical limitations
 
-This is a simulated portfolio case. The current monitor is rules-based. It does not claim causal inference, machine-learning prediction, or production real-time processing. Validation against customer-level joint distributions would be required before interpreting overlapping risk factors as a combined probability.
+This is a simulated portfolio case. The current intervention monitor is rules-based. The project does not claim causal inference, machine-learning prediction, or production real-time processing. Validation against customer-level joint distributions would be required before interpreting overlapping risk factors as a combined probability.
