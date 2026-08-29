@@ -4,6 +4,15 @@
 -- AUTHOR: STRATEGIC DATA ANALYST PORTFOLIO
 -- ====================================================================
 
+-- DEVELOPMENT REVISION LOG
+-- v1.0: Initial retention-monitoring query with wholesale filtering
+--       and high-risk cohort identification.
+--
+-- v1.1: Fixed intermediate CTE projection issue causing churn_status
+--       to be unavailable in the final filter.
+--       Added NULL handling for total_spent.
+--       Added explicit fallback handling for invalid or missing age values.
+
 WITH retail_base_cleansed AS (
     SELECT 
         customer_id,
