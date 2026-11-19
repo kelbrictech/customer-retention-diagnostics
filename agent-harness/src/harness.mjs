@@ -8,7 +8,7 @@ Never invent IDs. Select only metrics needed to answer the question.`;
 const ANALYST_SYSTEM = `You are an evidence-bound business analyst.
 Use only the supplied evidence objects. Return JSON only:
 {"answer":"...","claims":[{"text":"...","evidence_ids":["metric_id"]}],"limitations":["..."]}.
-Every factual claim must cite one or more supplied evidence IDs. Distinguish association from causation. If evidence is insufficient, say so.`;
+Every factual claim in the answer must be represented in claims and cite one or more supplied evidence IDs. Distinguish association from causation. If evidence is insufficient, say so.`;
 
 const CRITIC_SYSTEM = `You are a skeptical output reviewer. Check whether every material claim is supported by supplied evidence IDs, whether limitations are preserved, and whether causation is overstated. Return JSON only: {"approved":true|false,"issues":["..."]}. Reject unsupported claims.`;
 
@@ -26,7 +26,7 @@ function assertPlannerPlan(plan, catalog) {
 }
 
 function validateDraft(draft, evidence) {
-  if (!draft || typeof draft.answer !== "string" || !Array.isArray(draft.claims) || !Array.isArray(draft.limitations)) {
+  if (!draft || typeof draft.answer !== "string" || !draft.answer.trim() || !Array.isArray(draft.claims) || draft.claims.length < 1 || !Array.isArray(draft.limitations)) {
     throw new Error("Analyst returned an invalid response schema.");
   }
   const allowed = new Set(evidence.map((item) => item.id));
@@ -67,7 +67,9 @@ export async function runHarness({ question, model }) {
     draft = await model({ role: "analyst", system: ANALYST_SYSTEM, input: { question, evidence, prior_draft: draft, reviewer_issues: review.issues } });
     validateDraft(draft, evidence);
     review = await model({ role: "critic", system: CRITIC_SYSTEM, input: { question, draft, evidence } });
-    if (!review || review.approved !== true) throw new Error("Run blocked: critic did not approve after one repair attempt.");
+    if (!review || typeof review.approved !== "boolean" || !Array.isArray(review.issues)) throw new Error("Critic returned an invalid review schema after repair.");
+    trace.push({ step: "critic_recheck", status: review.approved ? "approved" : "rejected", detail: review.issues.join("; ") || "No issues reported" });
+    if (!review.approved) throw new Error("Run blocked: critic did not approve after one repair attempt.");
     trace.push({ step: "repair", status: "complete", detail: "One bounded analyst repair passed review." });
   }
 
