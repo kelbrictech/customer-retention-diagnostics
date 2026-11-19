@@ -54,3 +54,21 @@ test("one bounded repair can recover a critic rejection", async () => {
   assert.equal(criticCalls, 2);
   assert.ok(result.trace.some((step) => step.step === "repair"));
 });
+test("blocks a run when critic still rejects after one repair", async () => {
+  const model = async ({ role }) => {
+    if (role === "planner") return { metric_ids: ["retention_change"] };
+    if (role === "analyst") return { answer: "Retention declined.", claims: [{ text: "Retention declined.", evidence_ids: ["retention_change"] }], limitations: [] };
+    if (role === "critic") return { approved: false, issues: ["Evidence does not support the wording."] };
+    return {};
+  };
+  await assert.rejects(() => runHarness({ question: "What changed in retention?", model }), /did not approve after one repair attempt/);
+});
+
+test("rejects an answer with no evidence-linked claims", async () => {
+  const model = async ({ role }) => {
+    if (role === "planner") return { metric_ids: ["retention_change"] };
+    if (role === "analyst") return { answer: "Retention changed.", claims: [], limitations: [] };
+    return { approved: true, issues: [] };
+  };
+  await assert.rejects(() => runHarness({ question: "What changed in retention?", model }), /invalid response schema/);
+});
