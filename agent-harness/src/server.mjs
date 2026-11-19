@@ -36,4 +36,4 @@ const server = http.createServer(async (req, res) => {
   res.writeHead(404); res.end("Not found");
 });
 
-server.listen(port, () => console.log(`Agent harness listening on http://localhost:${port}`));
+server.listen(port, "127.0.0.1", () => console.log(`Agent harness listening on http://127.0.0.1:${port}`));
