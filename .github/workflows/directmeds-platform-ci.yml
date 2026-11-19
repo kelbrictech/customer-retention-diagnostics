@@ -5,10 +5,12 @@ on:
     branches: [directmeds-production-platform]
     paths:
       - "directmeds-platform/**"
+      - "agent-harness/**"
       - ".github/workflows/directmeds-platform-ci.yml"
   pull_request:
     paths:
       - "directmeds-platform/**"
+      - "agent-harness/**"
       - ".github/workflows/directmeds-platform-ci.yml"
   workflow_dispatch:
 
@@ -16,7 +18,7 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  platform-tests:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -26,4 +28,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+      - run: npm install --ignore-scripts
       - run: npm test
+
+  agent-harness-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: agent-harness
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm test
+      - run: npm run eval
