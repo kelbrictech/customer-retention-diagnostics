@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Certified Metrics · Agent Harness</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1020;--panel:#121a2b;--line:#26344b;--muted:#9aabc3;--text:#edf3fb;--accent:#7dd3fc;--good:#86efac;--bad:#fca5a5}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 20% 0%,#162944 0,transparent 42%),var(--bg);color:var(--text);font:15px/1.5 Inter,ui-sans-serif,system-ui,sans-serif}
+main{max-width:1120px;margin:auto;padding:36px 22px 70px}.eyebrow{color:var(--accent);font-size:12px;letter-spacing:.16em;text-transform:uppercase;font-weight:700}
+h1{font-size:clamp(30px,5vw,48px);line-height:1.05;margin:12px 0}p{color:var(--muted)}.sub{max-width:720px}
+.panel{background:rgba(18,26,43,.92);border:1px solid var(--line);border-radius:16px;padding:22px;margin-top:22px;box-shadow:0 18px 50px #0003}
+label{display:block;font-weight:650;margin-bottom:10px}textarea{width:100%;min-height:104px;resize:vertical;background:#0a1220;border:1px solid #33445f;border-radius:10px;color:var(--text);padding:14px;font:inherit}
+button{margin-top:12px;border:0;border-radius:9px;padding:12px 18px;background:var(--accent);color:#07111d;font-weight:800;cursor:pointer}button:disabled{opacity:.55;cursor:wait}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:18px}.metric{padding:13px;border:1px solid var(--line);border-radius:10px;background:#0d1626}.metric b{display:block;font-size:13px}.metric small{color:var(--muted)}
+.steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.step{border:1px solid var(--line);border-radius:10px;padding:12px;background:#0d1626}.step small{display:block;color:var(--muted);margin-top:4px}.status{font-size:11px;color:var(--good);text-transform:uppercase;letter-spacing:.1em}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;color:#c8d8eb;background:#09111d;padding:16px;border-radius:10px;border:1px solid var(--line);font:13px/1.55 ui-monospace,monospace}
+.result{display:none}.error{color:var(--bad)}footer{margin-top:24px;color:var(--muted);font-size:12px}
+@media(max-width:700px){.grid,.steps{grid-template-columns:repeat(2,minmax(0,1fr))}main{padding:24px 14px 48px}}
+</style></head>
+<body><main>
+<div class="eyebrow">Agent systems · engineering demo</div>
+<h1>Certified Metrics<br>Agent Harness</h1>
+<p class="sub">A bounded multi-agent workflow: planner → allowlisted metrics tool → analyst → critic. Every final claim must point to retrieved evidence. The dataset is a simulated portfolio case, not live company data.</p>
+<section class="panel">
+<label for="question">Ask a business question</label>
+<textarea id="question">Which customer cohorts show the strongest churn signals, and what should we investigate first?</textarea>
+<button id="run">Run agent workflow</button>
+<div class="grid">
+<div class="metric"><b>4</b><small>Maximum metric lookups</small></div>
+<div class="metric"><b>1</b><small>Bounded repair attempt</small></div>
+<div class="metric"><b>0</b><small>Arbitrary SQL access</small></div>
+<div class="metric"><b>100%</b><small>Claims require evidence IDs</small></div>
+</div></section>
+<section class="panel"><div class="eyebrow">Execution trace</div><div class="steps" id="steps"><div class="step">Planner<small>Waiting</small></div><div class="step">Metrics tool<small>Waiting</small></div><div class="step">Analyst<small>Waiting</small></div><div class="step">Critic<small>Waiting</small></div></div></section>
+<section class="panel result" id="result"><div class="eyebrow">Verified output</div><h2 id="answer"></h2><h3>Evidence</h3><pre id="evidence"></pre><h3>Claims and limitations</h3><pre id="claims"></pre><h3>Full run trace</h3><pre id="trace"></pre></section>
+<footer>Demo boundary: synthetic portfolio aggregates only. No patient records, prescribing decisions, or production business data.</footer>
+</main>
+<script>
+const run=document.querySelector("#run"),result=document.querySelector("#result");
+run.addEventListener("click",async()=>{
+ run.disabled=true;run.textContent="Running agents…";result.style.display="none";
+ document.querySelector("#steps").innerHTML=["Planner","Metrics tool","Analyst","Critic"].map(x=>'<div class="step">'+x+'<small>Executing</small></div>').join("");
+ try{
+  const response=await fetch("/api/run",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({question:document.querySelector("#question").value})});
+  const data=await response.json();if(!response.ok||data.status!=="verified")throw new Error(data.error||"Run blocked");
+  document.querySelector("#answer").textContent=data.answer;
+  document.querySelector("#evidence").textContent=JSON.stringify(data.evidence,null,2);
+  document.querySelector("#claims").textContent=JSON.stringify({claims:data.claims,limitations:data.limitations,policy:data.policy},null,2);
+  document.querySelector("#trace").textContent=JSON.stringify(data.trace,null,2);
+  const status={"planner":"Planned","metrics_tool":"Retrieved","analyst":"Drafted","critic":"Approved","repair":"Repaired"};
+  document.querySelector("#steps").innerHTML=data.trace.map(x=>'<div class="step"><span class="status">'+x.status+'</span><b>'+x.step+'</b><small>'+x.detail+'</small></div>').join("");
+  result.style.display="block";
+ }catch(e){document.querySelector("#steps").innerHTML='<div class="error">'+e.message+'</div>';result.style.display="block";document.querySelector("#answer").textContent="Run blocked";document.querySelector("#evidence").textContent="No verified evidence returned."}
+ finally{run.disabled=false;run.textContent="Run agent workflow"}
+});
+</script></body></html>
