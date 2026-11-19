@@ -2,11 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 
-test("platform API health, analytics, creative intake, and approval-gated jobs", async (t) => {
+test("platform APIs and integrated agent safety boundary", async (t) => {
   const port = 18878;
   const child = spawn(process.execPath, ["src/server.mjs"], {
     cwd: new URL("..", import.meta.url),
-    env: { ...process.env, PORT: String(port), HOST: "127.0.0.1" },
+    env: { ...process.env, PORT: String(port), HOST: "127.0.0.1", OPENAI_API_KEY: "" },
     stdio: "ignore"
   });
   t.after(() => child.kill("SIGTERM"));
@@ -24,6 +24,7 @@ test("platform API health, analytics, creative intake, and approval-gated jobs",
   const base = `http://127.0.0.1:${port}`;
   const health = await (await fetch(`${base}/health`)).json();
   assert.equal(health.status, "ok");
+  assert.equal(health.agent, "disabled-no-api-key");
 
   const emptyQuery = await fetch(`${base}/api/analytics/query`, {
     method: "POST", headers: { "content-type": "application/json" },
@@ -37,6 +38,12 @@ test("platform API health, analytics, creative intake, and approval-gated jobs",
   })).json();
   assert.equal(analytics.status, "demo_answer");
   assert.equal(analytics.evidence[0].source, "synthetic_demo_fixture");
+
+  const agentResponse = await fetch(`${base}/api/analytics/agent`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ question: "What happened to retention?" })
+  });
+  assert.equal(agentResponse.status, 503);
 
   const briefResponse = await fetch(`${base}/api/creative/briefs`, {
     method: "POST", headers: { "content-type": "application/json" },
