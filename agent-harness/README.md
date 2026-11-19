@@ -17,15 +17,15 @@ The model is replaceable through the provider adapter. There is no silent fallba
 Requires Node.js 20+.
 
 ```bash
-cp .env.example .env
-# Set OPENAI_API_KEY in your local environment; do not commit it.
-# Set OPENAI_MODEL if you want a different supported model.
+# Supply these process environment variables; do not commit secrets.
+export OPENAI_API_KEY='your-key'
+export OPENAI_MODEL='gpt-4.1-mini'
 npm test
 npm run eval
 npm start
 ```
 
-Open http://localhost:8787.
+Open http://127.0.0.1:8787.
 
 The HTTP service reads environment variables from the process. It does not load `.env` automatically; use your shell or a local environment manager to supply them.
 
