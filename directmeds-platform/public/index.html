@@ -14,25 +14,31 @@ textarea,input{width:100%;background:#0b1325;color:#fff;border:1px solid #344362
 button{background:#8bb5ff;color:#071329;border:0;border-radius:8px;padding:10px 14px;font-weight:700;cursor:pointer}
 pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#080e1b;padding:12px;border-radius:8px;color:#bcd0f5;font-size:12px}
 footer{max-width:1100px;margin:32px auto;padding:0 24px 32px;color:#8e9bb6;font-size:12px}
+.auth{max-width:1100px;margin:18px auto 0;padding:0 24px;display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}
+.auth input{margin:0}.auth button{white-space:nowrap}
 </style>
 </head>
 <body>
 <header><div class="eyebrow">Engineering demonstration · synthetic data mode</div><h1>DirectMeds AI Production Platform</h1><div class="muted">One operator surface for creative production, trusted analytics, operations automation, and agent orchestration.</div></header>
+<div class="auth"><input id="accessToken" type="password" autocomplete="off" placeholder="Platform access token (only needed for protected deployments)"><button onclick="saveToken()">Use token</button></div>
 <main>
 <div class="grid">
 <section class="card"><span class="tag">01 · Creative</span><h2>Campaign brief intake</h2><p class="muted">Record a brief for the creative pipeline. Image/video generation is not connected yet.</p><textarea id="brief" rows="3" placeholder="Describe the campaign brief"></textarea><button onclick="submitBrief()">Submit brief</button><pre id="creativeOut">No brief submitted.</pre></section>
-<section class="card"><span class="tag">02 · Analytics</span><h2>Trusted metrics</h2><p class="muted">Query the controlled demonstration dataset with evidence attached.</p><input id="question" placeholder="What happened in October?"><button onclick="askAnalytics()">Run analytics query</button><pre id="analyticsOut">No query run.</pre></section>
+<section class="card"><span class="tag">02 · Analytics</span><h2>Trusted metrics</h2><p class="muted">Query the controlled demonstration dataset with evidence attached.</p><input id="question" placeholder="What happened in October?"><button onclick="askAnalytics()">Run demo query</button><pre id="analyticsOut">No query run.</pre></section>
 <section class="card"><span class="tag">03 · Operations</span><h2>Workflow intake</h2><p class="muted">Create a job with an approval gate. No external action runs automatically.</p><textarea id="request" rows="3" placeholder="Describe an operational task"></textarea><button onclick="createJob()">Create workflow job</button><pre id="opsOut">No job created.</pre></section>
-<section class="card"><span class="tag">04 · Harness</span><h2>Platform status</h2><p class="muted">Shared API status and module readiness.</p><button onclick="loadHealth()">Check platform</button><pre id="healthOut">Checking platform status…</pre></section>
+<section class="card"><span class="tag">04 · Harness</span><h2>Certified analytics agent</h2><p class="muted">Runs the integrated TrendVibe case-study agent. Requires a server-side OpenAI key and uses case-study data, not DirectMeds data.</p><input id="agentQuestion" placeholder="How does churn vary by support tickets?"><button onclick="runAgent()">Run bounded agent</button><pre id="agentOut">No agent run.</pre></section>
+<section class="card"><span class="tag">Platform</span><h2>Service status</h2><p class="muted">API status and configured protections.</p><button onclick="loadHealth()">Check platform</button><pre id="healthOut">Checking platform status…</pre></section>
 </div>
 </main>
-<footer>Demonstration scaffold only. Analytics use synthetic fixtures. Creative asset generation, production data connections, authentication, persistent storage, and external operations integrations are not yet configured.</footer>
+<footer>Demonstration scaffold. Analytics are synthetic/case-study fixtures. No DirectMeds production data, clinical data, creative asset generation, or external operations connector is configured. Never enter patient information.</footer>
 <script>
-async function call(path,body){const r=await fetch(path,{method:body?"POST":"GET",headers:{"content-type":"application/json"},body:body?JSON.stringify(body):undefined});const data=await r.json();if(!r.ok)throw Error(data.error||r.statusText);return data}
+function saveToken(){const value=document.getElementById("accessToken").value.trim();if(value)sessionStorage.setItem("platformAccessToken",value);else sessionStorage.removeItem("platformAccessToken");document.getElementById("accessToken").value="";loadHealth()}
+async function call(path,body){const token=sessionStorage.getItem("platformAccessToken");const headers={"content-type":"application/json"};if(token)headers.authorization="Bearer "+token;const r=await fetch(path,{method:body?"POST":"GET",headers,body:body?JSON.stringify(body):undefined});const data=await r.json();if(!r.ok)throw Error(data.error||r.statusText);return data}
 async function show(id,fn){const el=document.getElementById(id);el.textContent="Working…";try{el.textContent=JSON.stringify(await fn(),null,2)}catch(e){el.textContent="ERROR: "+e.message}}
 function submitBrief(){show("creativeOut",()=>call("/api/creative/briefs",{brief:document.getElementById("brief").value}))}
 function askAnalytics(){show("analyticsOut",()=>call("/api/analytics/query",{question:document.getElementById("question").value}))}
 function createJob(){show("opsOut",()=>call("/api/operations/jobs",{request:document.getElementById("request").value}))}
+function runAgent(){show("agentOut",()=>call("/api/analytics/agent",{question:document.getElementById("agentQuestion").value}))}
 function loadHealth(){show("healthOut",()=>call("/health"))}
 loadHealth();
 </script>
