@@ -3,12 +3,12 @@ import { readFile } from "node:fs/promises";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createStore } from "./store.mjs";
+import { runAnalyticsAgent } from "./agent.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const html = await readFile(resolve(root, "public/index.html"), "utf8");
 const port = Number(process.env.PORT || 8788);
 const host = process.env.HOST || "127.0.0.1";
-const demoMode = process.env.DEMO_MODE !== "false";
 let pool = null;
 if (process.env.DATABASE_URL) {
   const { Pool } = await import("pg");
@@ -22,8 +22,6 @@ if (process.env.DATABASE_URL) {
   await pool.query("SELECT 1");
 }
 const store = createStore({ pool });
-
-// Clearly labeled synthetic demonstration data; never represent as DirectMeds production data.
 const metrics = [
   { id: "campaign_spend", label: "Campaign spend", value: 12500, unit: "USD", period: "2026-10", source: "synthetic_demo_fixture" },
   { id: "qualified_leads", label: "Qualified leads", value: 625, unit: "leads", period: "2026-10", source: "synthetic_demo_fixture" },
@@ -51,9 +49,8 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === "GET" && url.pathname === "/health") {
       return send(res, 200, {
-        status: "ok",
-        mode: store.mode,
-        analytics: "synthetic-demo",
+        status: "ok", mode: store.mode, analytics: "synthetic-demo",
+        agent: process.env.OPENAI_API_KEY ? "live-model-configured" : "disabled-no-api-key",
         modules: ["creative", "analytics", "operations", "agent-harness"]
       });
     }
@@ -62,14 +59,18 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === "POST" && url.pathname === "/api/analytics/query") {
       const body = await readBody(req);
-      const q = String(body.question || "").trim();
-      if (!q) return send(res, 400, { error: "question is required" });
+      if (!String(body.question || "").trim()) return send(res, 400, { error: "question is required" });
       return send(res, 200, {
         status: "demo_answer",
         answer: "The October demonstration fixture records $12,500 campaign spend, 625 qualified leads, and an 8% lead conversion rate.",
         evidence: metrics.map(({ id, label, value, unit, period, source }) => ({ id, label, value, unit, period, source })),
         limitations: ["Synthetic demonstration data only; not connected to DirectMeds systems.", "No causal conclusion can be drawn from these three aggregate metrics."]
       });
+    }
+    if (req.method === "POST" && url.pathname === "/api/analytics/agent") {
+      const body = await readBody(req);
+      const result = await runAnalyticsAgent(String(body.question || ""));
+      return send(res, 200, result);
     }
     if (req.method === "POST" && url.pathname === "/api/creative/briefs") {
       const body = await readBody(req);
@@ -89,7 +90,7 @@ const server = http.createServer(async (req, res) => {
     }
     return send(res, 404, { error: "not found" });
   } catch (error) {
-    const status = error instanceof SyntaxError ? 400 : (error.message === "Request body too large" ? 413 : 500);
+    const status = error.statusCode || (error instanceof SyntaxError ? 400 : (error.message === "Request body too large" ? 413 : 500));
     return send(res, status, { error: status === 500 ? "internal server error" : error.message });
   }
 });
