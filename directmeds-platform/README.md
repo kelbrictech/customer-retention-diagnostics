@@ -1,8 +1,8 @@
-# DirectMeds AI Production Platform — starter
+# DirectMeds AI Production Platform — integration scaffold
 
-This branch adds an operator dashboard and API skeleton alongside the separate agent-harness prototype.
+This branch adds an operator dashboard and API scaffold, PostgreSQL persistence, a protected API mode, and an integration adapter for the existing certified analytics agent harness.
 
-## Run
+## Run locally
 Requires Node.js 20+.
 
 ```bash
@@ -11,40 +11,47 @@ npm install
 npm start
 ```
 
-Open http://127.0.0.1:8788. Without DATABASE_URL, the app uses in-memory demo storage. With DATABASE_URL, campaign briefs and operations jobs use PostgreSQL. Analytics remains synthetic in both modes.
+Open http://127.0.0.1:8788. Without DATABASE_URL, campaign briefs and operations jobs use in-memory demo storage. With DATABASE_URL, they use PostgreSQL. Analytics fixtures remain synthetic in both modes.
 
 ## PostgreSQL setup
-1. Create a dedicated database for this platform. Do not reuse another product's database.
-2. Apply `migrations/001_initial.sql` to that database.
-3. Set DATABASE_URL in the deployment environment. For Neon, retain TLS verification (`PGSSL=require`, `PGSSL_REJECT_UNAUTHORIZED=true`).
-4. Install dependencies with `npm install`, then start the server.
-5. Check `/health`; it reports `postgres` only after a successful database connection.
+1. Provision a dedicated database for this platform; do not reuse another product's database.
+2. Apply `migrations/001_initial.sql` manually after review.
+3. Set DATABASE_URL in the runtime environment. For Neon, retain TLS verification (`PGSSL=require`, `PGSSL_REJECT_UNAUTHORIZED=true`).
+4. Install dependencies and start the server.
+5. Check `/health`; it reports the active storage mode.
 
-The app does not run migrations automatically. Database schema changes must be reviewed and applied deliberately.
+The application does not run migrations automatically.
+
+## API access
+- The default `HOST=127.0.0.1` mode is for local development only.
+- A non-loopback bind is refused unless `ADMIN_API_TOKEN` is set to a random secret of at least 32 characters.
+- Protected API requests require `Authorization: Bearer <token>`. The dashboard holds the token in sessionStorage for that browser tab.
+- Put the token in the hosting provider's secret manager, never in Git or the HTML.
+- Terminate HTTPS at the deployment edge. Do not send bearer tokens over plain public HTTP.
+
+This is a single shared operator token, not a user identity system or role-based authorization. Rotate it if exposed.
+
+## Agent integration
+- `POST /api/analytics/agent` calls the existing planner → allowlisted metrics → analyst → critic harness.
+- The endpoint requires server-side OPENAI_API_KEY. No mock fallback is used for live requests.
+- The adapter caps each run at five model calls and defaults to one concurrent run.
+- The existing harness limits metric lookups to four and repair attempts to one.
+- Results identify their source as the TrendVibe case-study aggregate brief, not DirectMeds data.
+- The current provider adapter does not enforce a token or monetary spend ceiling. Model calls may incur API charges when enabled.
 
 ## Implemented
-- Operator dashboard and health endpoint.
-- Synthetic analytics fixture with explicit evidence/source labels.
-- Campaign brief intake, persisted in PostgreSQL when configured.
-- Operations job intake and retrieval, persisted in PostgreSQL when configured.
-- Jobs remain `awaiting_approval`; no approval or external execution endpoint exists.
+- Dashboard for creative intake, demo analytics, operations intake, agent runs, and service status.
+- Campaign brief and operations job storage in PostgreSQL when configured.
+- Synthetic analytics fixture with explicit source labels.
+- Operations jobs start in `awaiting_approval`; there is no execution endpoint.
 
-## Not production-ready
-- No authentication or authorization. Bind to localhost only; do not expose publicly.
-- No DirectMeds credentials, production datasets, or internal API connections.
-- No image/video generation provider integration or asset storage.
-- Analytics is synthetic and is not connected to DirectMeds sources.
-- No integrated model-powered orchestration in this platform. The existing `agent-harness/` remains separate.
-- No durable workflow execution, retries, idempotency, approval UI, or audit log.
-- No deployment configuration or production security review.
+## Still not production-ready
+- No DirectMeds data connections, production metrics, credentials, or approved source definitions.
+- No patient data processing or clinical functionality.
+- No image/video generation or asset storage.
+- No individual user accounts, roles, SSO, or fine-grained permissions.
+- No durable workflow runner, approval action, idempotency, retry queue, or audit log.
+- No provider-side token budget, billing cap, or cumulative spend guard.
+- No production deployment, security assessment, or end-to-end validation against DirectMeds systems.
 
-Never commit secrets. Do not describe synthetic analytics as DirectMeds business data.
-
-## Remaining production work
-1. Add authenticated operator accounts and role-based authorization.
-2. Integrate the existing agent harness through bounded model/tool adapters and enforce per-call plus cumulative cost limits.
-3. Implement creative generation, asset storage, review, and export.
-4. Connect approved analytics sources and validate metric definitions against known answers.
-5. Implement durable workflow execution, approvals, idempotency, retries, and audit logs.
-6. Expand integration/evaluation tests and CI.
-7. Deploy, then verify real workflows in the deployed environment.
+Never enter patient information into this demo. Do not describe TrendVibe or synthetic fixtures as DirectMeds business data.
