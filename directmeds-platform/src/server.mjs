@@ -1,4 +1,5 @@
 import http from "node:http";
+import { timingSafeEqual } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,6 +10,11 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const html = await readFile(resolve(root, "public/index.html"), "utf8");
 const port = Number(process.env.PORT || 8788);
 const host = process.env.HOST || "127.0.0.1";
+const adminToken = process.env.ADMIN_API_TOKEN || "";
+const isLoopback = host === "127.0.0.1" || host === "::1" || host === "localhost";
+if (!isLoopback && adminToken.length < 32) {
+  throw new Error("Refusing non-loopback bind: set ADMIN_API_TOKEN to a random value of at least 32 characters.");
+}
 let pool = null;
 if (process.env.DATABASE_URL) {
   const { Pool } = await import("pg");
@@ -32,6 +38,13 @@ function send(res, status, body) {
   res.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
   res.end(JSON.stringify(body));
 }
+function authorized(req) {
+  if (!adminToken) return isLoopback;
+  const supplied = req.headers.authorization?.startsWith("Bearer ") ? req.headers.authorization.slice(7) : "";
+  const a = Buffer.from(supplied);
+  const b = Buffer.from(adminToken);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 async function readBody(req) {
   let raw = "";
   for await (const chunk of req) {
@@ -49,10 +62,13 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === "GET" && url.pathname === "/health") {
       return send(res, 200, {
-        status: "ok", mode: store.mode, analytics: "synthetic-demo",
-        agent: process.env.OPENAI_API_KEY ? "live-model-configured" : "disabled-no-api-key",
+        status: "ok", mode: store.mode, authentication: adminToken ? "bearer-token-required" : "loopback-only",
+        analytics: "synthetic-demo", agent: process.env.OPENAI_API_KEY ? "live-model-configured" : "disabled-no-api-key",
         modules: ["creative", "analytics", "operations", "agent-harness"]
       });
+    }
+    if (url.pathname.startsWith("/api/") && !authorized(req)) {
+      return send(res, 401, { error: "Unauthorized. Enter the configured platform access token." });
     }
     if (req.method === "GET" && url.pathname === "/api/analytics/metrics") {
       return send(res, 200, { mode: "synthetic-demo", metrics });
@@ -69,8 +85,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === "POST" && url.pathname === "/api/analytics/agent") {
       const body = await readBody(req);
-      const result = await runAnalyticsAgent(String(body.question || ""));
-      return send(res, 200, result);
+      return send(res, 200, await runAnalyticsAgent(String(body.question || "")));
     }
     if (req.method === "POST" && url.pathname === "/api/creative/briefs") {
       const body = await readBody(req);
